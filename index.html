@@ -2041,8 +2041,8 @@ tbody tr{transition:background 0.12s;}
     { hp: "Students highly appreciated the mentor's support in resolving doubts and handling queries effectively.", mp: "The mentor was positively rated for student support and doubt clarification.", n: "Students expressed moderate satisfaction with the mentor's responsiveness to doubts and questions.", mn: "Students identified improvement opportunities in doubt clarification and student interaction.", hn: "Students reported inadequate support in resolving doubts and handling academic queries." },
     { hp: "Students reported strong improvement in understanding and skill development through the mentor's sessions.", mp: "Students positively rated the learning effectiveness of the mentor's sessions.", n: "Student feedback indicates moderate improvement in learning outcomes and skill development.", mn: "Students suggested improvements in learning effectiveness and practical understanding.", hn: "Students reported limited improvement in learning outcomes from the mentor's sessions." }
   ];
-  var GROQ_KEY = "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";
-
+  var SV_ENDPOINT = "https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev";
+  
   // js/calc/mentorKpi.js
   function calcMentorKPIs(qs) {
     const pcts = qs.map((q) => {
@@ -2420,6 +2420,7 @@ tbody tr{transition:background 0.12s;}
   var renderKey3 = null;
   var metrics3 = null;
   var svRunning = false;
+  var svCache = new Map();
   function activateNps() {
     renderMonthFilter("npsMonthFilter", selectedMonth3, (value) => {
       selectedMonth3 = value;
@@ -2543,8 +2544,15 @@ tbody tr{transition:background 0.12s;}
     document.getElementById("svResult").style.display = stateName === "result" ? "block" : "none";
     document.getElementById("svError").style.display = stateName === "error" ? "block" : "none";
   }
-  async function runStudentVoice() {
+    async function runStudentVoice(force) {
     if (svRunning) return;
+    const svCacheKey = `${state.currentCollege ? state.currentCollege.name : ""}|${selectedMonth3}`;
+    if (force !== true && svCache.has(svCacheKey)) {
+      const c = svCache.get(svCacheKey);
+      document.getElementById("svBadge").textContent = `${c.q6} Q6 \xB7 ${c.q7} Q7`;
+      renderStudentVoiceResult(c.likes, c.improvements, c.q6, c.q7);
+      return;
+    }
     const rows = metrics3?.rawRows || [];
     if (!rows.length) {
       svShow("idle");
@@ -2589,7 +2597,7 @@ tbody tr{transition:background 0.12s;}
     document.getElementById("svBadge").textContent = `${validQ6.length} Q6 \xB7 ${validQ7.length} Q7`;
     document.getElementById("svRegenBtn").style.display = "none";
     document.getElementById("svLoadingText").textContent = "Analysing student responses with AI\u2026";
-    const sample = (arr) => arr.length > 120 ? arr.sort(() => Math.random() - 0.5).slice(0, 120) : arr;
+    const sample = (arr) => arr.sort(() => Math.random() - 0.5).slice(0, 300).map((r) => r.slice(0, 300));
     const q6Sample = sample([...validQ6]);
     const q7Sample = sample([...validQ7]);
     const collegeName = state.currentCollege ? state.currentCollege.name : "this college";
@@ -2616,17 +2624,16 @@ Rules:
 - Do NOT include any text outside the JSON object
 - Use plain language, no markdown formatting inside the strings`;
     try {
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const response = await fetch(SV_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_KEY}` },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], max_tokens: 1e3, temperature: 0.4 })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt })
       });
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`Groq API error ${response.status}: ${errText.slice(0, 200)}`);
+        throw new Error(`AI API error ${response.status}: ${errText.slice(0, 200)}`);
       }
-      const data = await response.json();
-      const rawText = data.choices?.[0]?.message?.content || "";
+      const rawText = await response.text();
       let parsed;
       try {
         parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim());
@@ -2637,6 +2644,7 @@ Rules:
       }
       const likes = Array.isArray(parsed.likes) ? parsed.likes : [];
       const improvements = Array.isArray(parsed.improvements) ? parsed.improvements : [];
+      svCache.set(svCacheKey, { likes, improvements, q6: validQ6.length, q7: validQ7.length });
       renderStudentVoiceResult(likes, improvements, validQ6.length, validQ7.length);
     } catch (err) {
       console.error("Student Voice error:", err);
@@ -2964,7 +2972,7 @@ Rules:
     document.getElementById("landingSearch").addEventListener("input", landingFilterRender);
     document.getElementById("landingSort").addEventListener("change", landingFilterRender);
     document.querySelectorAll("#landingTable th.landing-sortable").forEach((th) => th.addEventListener("click", () => landingToggleSort(th.getAttribute("data-sort"))));
-    document.getElementById("svRegenBtn").addEventListener("click", runStudentVoice);
+    document.getElementById("svRegenBtn").addEventListener("click", () => runStudentVoice(true));
   }
   document.addEventListener("DOMContentLoaded", () => {
     if (window.Chart) {
