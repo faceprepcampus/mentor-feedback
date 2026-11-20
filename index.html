@@ -1144,7 +1144,7 @@ tbody tr{transition:background 0.12s;}
   var rowsCache = /* @__PURE__ */ new Map();
   var inflight = /* @__PURE__ */ new Map();
   function gvizUrl(sheetId, sheetName) {
-    return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+    return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(sheetName)}`;
   }
   function parseCsv(text) {
     return new Promise((resolve, reject) => {
