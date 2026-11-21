@@ -956,6 +956,17 @@ tbody tr{transition:background 0.12s;}
     "Asian School of Business": { sheetId: "1vw_fZ_5RkWNLbe0Y5pTdkplwVZYl2TVZ0LvI4ogezK8", gids: ["0"] },
     "Solamalai College of Engineering": { sheetId: "1DT5HQjm_BLUpc73s03mZazUoDV4FCa_qSPpeqbgXBmY", gids: ["0"] }
   };
+
+  var COLLEGE_GIDS = {
+    // Oct 2026 spreadsheet
+    "1nNboI2YcaMfiPiNLbCHaiGnKbduFEvL1adpfQam7ZfQ": {
+      "S-VYASA University": "825580997",
+    }
+  };
+  function exportUrl(sheetId, gid) {
+    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+  }
+  
   var MONTH_ALIAS_MAP = {
     "sep 2025": "Sep 2025",
     "september 2025": "Sep 2025",
@@ -1156,12 +1167,17 @@ tbody tr{transition:background 0.12s;}
       });
     });
   }
-  function fetchSheet(sheetId, sheetName) {
+function fetchSheet(sheetId, sheetName) {
+    const gidMap = COLLEGE_GIDS[sheetId];
+    const gid = gidMap ? gidMap[sheetName] : undefined;
+    const url = (gid != null && gid !== "")
+      ? exportUrl(sheetId, gid)
+      : gvizUrl(sheetId, sheetName);
     const cacheKey = `${sheetId}::${sheetName}`;
     if (rowsCache.has(cacheKey)) return Promise.resolve(rowsCache.get(cacheKey));
     if (inflight.has(cacheKey)) return inflight.get(cacheKey);
     const p = (async () => {
-      const resp = await fetch(gvizUrl(sheetId, sheetName));
+      const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const text = await resp.text();
       const rows = await parseCsv(text);
@@ -1174,7 +1190,7 @@ tbody tr{transition:background 0.12s;}
     }).finally(() => inflight.delete(cacheKey));
     inflight.set(cacheKey, p);
     return p;
-  }
+  }  
   async function getMonthlyRows(monthKey, college) {
     if (monthKey === ALL_MONTHS) {
       const perMonth = await mapLimit(MONTHS, 6, (m) => fetchSheet(m.sheetId, college.sheet));
